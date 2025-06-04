@@ -5,6 +5,7 @@ const rolePermissions = {
   ADMIN: ["READ", "WRITE", "DELETE", "UPDATE"],
   WRITER: ["READ", "WRITE"],
   VISITOR: ["READ"],
+  MODERATOR: ["READ", "DELETE"],
 };
 
 // Register a new user
@@ -62,7 +63,7 @@ exports.login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || "1h" }
     );
-    res.json({ token });
+    res.json({ token, role: user.role });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

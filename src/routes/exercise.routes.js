@@ -114,19 +114,28 @@ router.delete("/:id", auth, checkPermission(["DELETE"]), async (req, res) => {
     if (!exercise) {
       return res.status(404).json({ message: "Exercise not found" });
     }
+    // - public and user is creator
+    // - public and user is MODERATOR
+    // Original condition was denying access if user *didn't* meet criteria.
+    // Let's flip the logic to explicitly *allow* if they meet criteria.
+    const isOwner = exercise.user && exercise.user.toString() === req.user.id;
+    const isModerator = req.user.role === "MODERATOR";
+
     if (
-      (exercise.visibility === "private" &&
-        exercise.user &&
-        exercise.user.toString() !== req.user.id) ||
-      (exercise.visibility === "public" &&
-        exercise.user &&
-        exercise.user.toString() !== req.user.id)
+      !(
+        // Allow if any of the following are true:
+        (
+          (exercise.visibility === "private" && isOwner) ||
+          (exercise.visibility === "public" && isOwner) ||
+          (exercise.visibility === "public" && isModerator)
+        )
+      )
     ) {
       return res
         .status(403)
         .json({ message: "Not authorized to delete this exercise" });
     }
-    await exercise.remove();
+    await Exercise.findByIdAndDelete(req.params.id);
     res.json({ message: "Exercise deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
