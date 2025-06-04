@@ -17,7 +17,7 @@ const exerciseSchema = new mongoose.Schema(
     },
     bodyPart: {
       type: String,
-      required: true,
+      required: false,
     },
     equipment: {
       type: String,
@@ -35,6 +35,11 @@ const exerciseSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
+    },
+    visibility: {
+      type: String,
+      enum: ["public", "private"],
+      default: "private",
     },
   },
   {

@@ -7,19 +7,26 @@ const {
   checkPermission,
 } = require("../middleware/auth.middleware");
 
-// Get all exercises with pagination
+// Get all exercises (public + user's private)
 router.get("/", auth, checkPermission(["READ"]), async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const exercises = await Exercise.find()
+    const query = {
+      $or: [
+        { visibility: "public" },
+        { visibility: "private", user: req.user.id },
+      ],
+    };
+
+    const exercises = await Exercise.find(query)
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
 
-    const total = await Exercise.countDocuments();
+    const total = await Exercise.countDocuments(query);
 
     res.json({
       exercises,
@@ -32,11 +39,16 @@ router.get("/", auth, checkPermission(["READ"]), async (req, res) => {
   }
 });
 
-// Get exercise by ID
+// Get exercise by ID (only if public or user's private)
 router.get("/:id", auth, checkPermission(["READ"]), async (req, res) => {
   try {
     const exercise = await Exercise.findById(req.params.id);
-    if (!exercise) {
+    if (
+      !exercise ||
+      (exercise.visibility === "private" &&
+        exercise.user &&
+        exercise.user.toString() !== req.user.id)
+    ) {
       return res.status(404).json({ message: "Exercise not found" });
     }
     res.json(exercise);
@@ -45,12 +57,15 @@ router.get("/:id", auth, checkPermission(["READ"]), async (req, res) => {
   }
 });
 
-// Create new exercise
+// Create new exercise (allow setting visibility)
 router.post("/", auth, checkPermission(["WRITE"]), async (req, res) => {
   try {
+    const { visibility = "private" } = req.body;
     const exercise = new Exercise({
       ...req.body,
-      createdBy: req.user.id,
+      user: req.user.id,
+      isCustom: true,
+      visibility,
     });
     const savedExercise = await exercise.save();
     res.status(201).json(savedExercise);
@@ -59,24 +74,28 @@ router.post("/", auth, checkPermission(["WRITE"]), async (req, res) => {
   }
 });
 
-// Update exercise
+// Update exercise (only if user's own private or creator of public)
 router.put("/:id", auth, checkPermission(["UPDATE"]), async (req, res) => {
   try {
     const exercise = await Exercise.findById(req.params.id);
     if (!exercise) {
       return res.status(404).json({ message: "Exercise not found" });
     }
-
-    // Check if user is the creator or has admin role
+    // Only allow update if:
+    // - private and user is owner
+    // - public and user is creator
     if (
-      exercise.createdBy.toString() !== req.user.id &&
-      req.user.role !== "ADMIN"
+      (exercise.visibility === "private" &&
+        exercise.user &&
+        exercise.user.toString() !== req.user.id) ||
+      (exercise.visibility === "public" &&
+        exercise.user &&
+        exercise.user.toString() !== req.user.id)
     ) {
       return res
         .status(403)
         .json({ message: "Not authorized to update this exercise" });
     }
-
     const updatedExercise = await Exercise.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -88,24 +107,25 @@ router.put("/:id", auth, checkPermission(["UPDATE"]), async (req, res) => {
   }
 });
 
-// Delete exercise
+// Delete exercise (only if user's own private or creator of public)
 router.delete("/:id", auth, checkPermission(["DELETE"]), async (req, res) => {
   try {
     const exercise = await Exercise.findById(req.params.id);
     if (!exercise) {
       return res.status(404).json({ message: "Exercise not found" });
     }
-
-    // Check if user is the creator or has admin role
     if (
-      exercise.createdBy.toString() !== req.user.id &&
-      req.user.role !== "ADMIN"
+      (exercise.visibility === "private" &&
+        exercise.user &&
+        exercise.user.toString() !== req.user.id) ||
+      (exercise.visibility === "public" &&
+        exercise.user &&
+        exercise.user.toString() !== req.user.id)
     ) {
       return res
         .status(403)
         .json({ message: "Not authorized to delete this exercise" });
     }
-
     await exercise.remove();
     res.json({ message: "Exercise deleted successfully" });
   } catch (error) {
@@ -113,17 +133,27 @@ router.delete("/:id", auth, checkPermission(["DELETE"]), async (req, res) => {
   }
 });
 
-// Search exercises
+// Search exercises (public + user's private)
 router.get(
   "/search/:query",
   auth,
   checkPermission(["READ"]),
   async (req, res) => {
     try {
-      const exercises = await Exercise.find(
-        { $text: { $search: req.params.query } },
-        { score: { $meta: "textScore" } }
-      )
+      const query = {
+        $and: [
+          { $text: { $search: req.params.query } },
+          {
+            $or: [
+              { visibility: "public" },
+              { visibility: "private", user: req.user.id },
+            ],
+          },
+        ],
+      };
+      const exercises = await Exercise.find(query, {
+        score: { $meta: "textScore" },
+      })
         .sort({ score: { $meta: "textScore" } })
         .limit(10);
 
