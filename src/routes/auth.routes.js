@@ -1,9 +1,16 @@
 const express = require("express");
 const router = express.Router();
+const authController = require("../controllers/auth.controller");
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
 
-// Get token endpoint
+// Register endpoint
+router.post("/register", authController.register);
+
+// Login endpoint
+router.post("/login", authController.login);
+
+// Get token endpoint (legacy/demo)
 router.post("/token", async (req, res) => {
   try {
     const { username, password, role, permissions } = req.body;
