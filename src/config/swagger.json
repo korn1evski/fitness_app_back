@@ -211,6 +211,79 @@
         }
       }
     },
+    "/api/exercises/{id}": {
+      "delete": {
+        "tags": ["Exercises"],
+        "summary": "Delete an exercise by ID (Moderator only)",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID of the exercise to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exercise and related workout entries deleted successfully"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Access denied: insufficient role (Moderator required)"
+          },
+          "404": {
+            "description": "Exercise not found"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Exercises"],
+        "summary": "Update an exercise",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "gifUrl": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "bodyPart": {
+                    "type": "string"
+                  },
+                  "equipment": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Exercise updated successfully"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "404": {
+            "description": "Exercise not found"
+          }
+        }
+      }
+    },
     "/api/workouts": {
       "get": {
         "tags": ["Workouts"],

@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Exercise = require("../models/exercise.model");
+const Workout = require("../models/workout.model");
 const {
   auth,
   checkRole,
@@ -107,36 +108,28 @@ router.put("/:id", auth, checkPermission(["UPDATE"]), async (req, res) => {
   }
 });
 
-// Delete exercise (only if user's own private or creator of public)
-router.delete("/:id", auth, checkPermission(["DELETE"]), async (req, res) => {
+// Delete exercise (only for MODERATORS)
+router.delete("/:id", auth, checkRole(["MODERATOR"]), async (req, res) => {
   try {
-    const exercise = await Exercise.findById(req.params.id);
+    const exerciseId = req.params.id;
+    const exercise = await Exercise.findById(exerciseId);
+
     if (!exercise) {
       return res.status(404).json({ message: "Exercise not found" });
     }
-    // - public and user is creator
-    // - public and user is MODERATOR
-    // Original condition was denying access if user *didn't* meet criteria.
-    // Let's flip the logic to explicitly *allow* if they meet criteria.
-    const isOwner = exercise.user && exercise.user.toString() === req.user.id;
-    const isModerator = req.user.role === "MODERATOR";
 
-    if (
-      !(
-        // Allow if any of the following are true:
-        (
-          (exercise.visibility === "private" && isOwner) ||
-          (exercise.visibility === "public" && isOwner) ||
-          (exercise.visibility === "public" && isModerator)
-        )
-      )
-    ) {
-      return res
-        .status(403)
-        .json({ message: "Not authorized to delete this exercise" });
-    }
-    await Exercise.findByIdAndDelete(req.params.id);
-    res.json({ message: "Exercise deleted successfully" });
+    // Delete the exercise
+    await Exercise.findByIdAndDelete(exerciseId);
+
+    // Remove the exercise from all workouts that contain it
+    await Workout.updateMany(
+      { "exercises.exercise": exerciseId },
+      { $pull: { exercises: { exercise: exerciseId } } }
+    );
+
+    res.json({
+      message: "Exercise and related workout entries deleted successfully",
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
